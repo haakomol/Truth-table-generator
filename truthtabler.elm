@@ -1,4 +1,4 @@
-module TruthTabler exposing (..)
+module TruthTabler exposing (getSimpleTruthTableRows)
 
 import Array exposing (Array, get)
 
@@ -16,6 +16,46 @@ type alias PropvarWithValue = (Propvar, Bool)
 type alias Valuation = List PropvarWithValue
 
 type alias SemTreeWithValuation = (SemanticTree, Valuation)
+
+simpleTruthTableRow : SemTreeWithValuation -> List Bool
+simpleTruthTableRow semTreeWithValuation =
+  let
+    (semTree, valuation) = semTreeWithValuation
+  in
+    List.append
+      (extractTruthValuesFromValuation valuation)
+      (extractTruthValuesFromSemTree semTree)
+
+extractTruthValuesFromValuation : Valuation -> List Bool
+extractTruthValuesFromValuation valuation =
+  List.map (\ (propvar, truthValue) -> truthValue) valuation
+
+extractTruthValuesFromSemTree : SemanticTree -> List Bool
+extractTruthValuesFromSemTree semanticTree =
+  case semanticTree of
+    SemLeaf truthValue _ ->
+      [ truthValue ]
+    SemNot truthValue subTree ->
+      truthValue :: extractTruthValuesFromSemTree subTree
+    SemBinary truthValue left op right ->
+      List.append
+        (extractTruthValuesFromSemTree left)
+        (truthValue ::
+          (extractTruthValuesFromSemTree right))
+
+growSemTreesForAllValuations : ParseTree -> List Valuation -> List SemTreeWithValuation
+growSemTreesForAllValuations parseTree valuations =
+  List.map (growSemanticTreeWithValues parseTree) valuations
+
+getSimpleTruthTableRows : ParseTree -> List (List Bool)
+getSimpleTruthTableRows parseTree =
+  let
+    uniquePropvars = getUniquePropvars parseTree
+    allValuations = getAllValuations uniquePropvars
+    semTreeTable = growSemTreesForAllValuations parseTree allValuations
+  in
+    List.map simpleTruthTableRow semTreeTable
+
 
 semTreeValue : SemanticTree -> Bool
 semTreeValue semanticTree =
@@ -129,9 +169,12 @@ collectPropvars parseTree =
     Leaf string ->
       [ string ]
 
-getUniquePropvars : List Propvar -> List Propvar
-getUniquePropvars propvars =
-  removeDuplicates propvars
+getUniquePropvars : ParseTree -> List Propvar
+getUniquePropvars parseTree =
+  let
+    propvars = collectPropvars parseTree
+  in
+    removeDuplicates propvars
 
 removeDuplicates : List a -> List a
 removeDuplicates lst =

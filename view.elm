@@ -1,6 +1,6 @@
 module View exposing (view)
 
-import Html exposing (Html, Attribute, div, input, text, button, h1, h2, h3, h4, h5, h6, fieldset, label)
+import Html exposing (Html, Attribute, div, span, input, text, button, h1, h2, h3, h4, h5, h6, fieldset, label)
 import Html.Attributes exposing (placeholder, type_, checked)
 import Html.Events exposing (onInput, onClick)
 
@@ -55,10 +55,10 @@ getErrorOrOkMessage model =
 viewTokens : Model -> Html msg
 viewTokens model =
   let
-    tokenDivs = List.map (\ token -> div [] [ text (toString token) ]) model.tokens
+    tokenSpans = List.map (\ token -> span [] [ text ("[" ++ (toString token) ++ "]  ") ]) model.tokens
   in
     div []
-      ((h4 [] [ text "Tokenizer - Token list:" ] ) :: tokenDivs)
+      ((h4 [] [ text "Tokenizer - Token list:" ] ) :: tokenSpans)
 
 viewParseTree : Model -> Html msg
 viewParseTree model =
@@ -78,6 +78,6 @@ renderParseTreeToString model =
 viewTruthTable : Model -> Html msg
 viewTruthTable model =
   div []
-    [ h4 [] [ text "Truth table" ]
-    , text (toString model.truthTable.nPropvars)
-    ]
+    (List.append
+      [ h4 [] [ text "Truth table" ] ]
+      (List.map (\ truthTableRow -> (div [] [ text (toString truthTableRow) ] ) ) model.truthTable))

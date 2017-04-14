@@ -6,12 +6,12 @@ type alias Model =
   , showParseInfo : Bool
   , tokens : List Token
   , parseTree : Maybe ParseTree
-  , truthTable : TruthTable
+  , truthTable : List (List Bool)
   }
 
 init : (Model, Cmd Msg)
 init =
-  (Model "" "" True [] Nothing (TruthTable 0), Cmd.none)
+  (Model "" "" True [] Nothing [], Cmd.none)
 
 type Msg
   = ChangeInput String

@@ -3,6 +3,7 @@ import Html exposing (Html)
 import Types exposing (..)
 import Tokenizer exposing (..)
 import Parser exposing (..)
+import TruthTabler exposing (..)
 import View exposing (..)
 
 
@@ -28,16 +29,28 @@ update msg model =
       in
         case tokenizeResult of
           Err errorMessage ->
-            ( { model | errorMessage = errorMessage, tokens = [], parseTree = Nothing }, Cmd.none)
+            ( { model | errorMessage = errorMessage,
+                        tokens = [],
+                        parseTree = Nothing,
+                        truthTable = [] }, Cmd.none)
           Ok tokens ->
             let
               parseTreeResult = parseTokens tokens
             in
               case parseTreeResult of
                 Err errorMessage ->
-                  ( { model | errorMessage = errorMessage, tokens = tokens, parseTree = Nothing }, Cmd.none)
+                  ( { model | errorMessage = errorMessage,
+                              tokens = tokens,
+                              parseTree = Nothing,
+                              truthTable = [] }, Cmd.none)
                 Ok parseTree ->
-                  ( { model | tokens = tokens, parseTree = Just parseTree, errorMessage = "" }, Cmd.none)
+                  let
+                    truthTable = getSimpleTruthTableRows parseTree
+                  in
+                    ( { model | tokens = tokens,
+                                parseTree = Just parseTree,
+                                truthTable = truthTable,
+                                errorMessage = "" }, Cmd.none)
         
       --   TruthTabler ->
       --     let
