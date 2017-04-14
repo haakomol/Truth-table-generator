@@ -54,35 +54,52 @@ update msg model =
 
 tokenize : String -> Result String (List Token)
 tokenize inputString =
-  let 
-  
+  let
+    innerHelper tokensSoFar inputString =
+      if   String.isEmpty inputString
+      then List.reverse tokensSoFar
+      else
+        let
+          tokenizeOneResult = tokenizeOne inputString
+        in
+          case tokenizeOneResult of
+            Err errorString ->
+              Err errorString
+
+            Ok (token, restOfInputString) ->
+              innerHelper (List.cons token tokensSoFar) restOfInputString 
+
+tokenizeOne String -> (Result String (Token, String))
 tokenizeOne inputString =
   let
     firstCharMaybe = String.uncons inputString
-    
-    tokenizePropvar readSoFar input =
-      let
-        curCharMaybe = String.uncons input
-      in
-        case curCharMaybe of
-          Nothing -> Err "tokenizeProvar: empty input"
-          Just (firstChar, restOfInput) ->
-            if Regex.contains (regex "A-Za-z") toString firstChar
-              tokenizePropvar (readSoFar ++ toString firstChar) restOfInput
-            else
-              PropvarToken readSoFar
   in
     case firstCharMaybe of
-      Nothing -> Err "toknizeOne: empty input"
-      Just (firstChar, _) ->
+      Nothing ->
+        Err "toknizeOne: empty input"
+      Just (firstChar, restOfInput) ->
         case firstChar of
-          "&" -> Token And
-          "|" -> Token Or
-          "-" -> Token Not
-          ">" -> Token Implication
-          " " -> tokenizeOne String.dropLeft 1 inputString
+          '(' -> Ok (LeftParToken, restOfInput)
+          ')' -> Ok (RightParToken, restOfInput)
+          '&' -> Ok (AndToken, restOfInput)
+          '|' -> Ok (OrToken, restOfInput)
+          '-' -> Ok (NotToken, restOfInput)
+          '>' -> Ok (ImplicationToken, restOfInput)
+          ' ' -> tokenizeOne String.dropLeft 1 inputString
           _ -> tokenizePropVar inputString
 
+tokenizePropvar readSoFar curInput =
+  let
+    curCharMaybe = String.uncons curInput
+  in
+    case curCharMaybe of
+      Nothing ->
+        Ok (PropvarToken readSoFar, curInput)
+      Just (firstChar, restOfInput) ->
+        if firstChar |> toString |> Regex.contains (regex "A-Za-z")
+          tokenizePropvar (readSoFar ++ toString firstChar) restOfInput
+        else
+          Ok (PropvarToken readSoFar, curInput)
 
 parseFormula : String -> Model
 parseFormula newFormula =
