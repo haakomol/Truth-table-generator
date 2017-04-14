@@ -1,4 +1,4 @@
-module Parser exposing (..)
+module Parser exposing (parseTokens)
 
 import Types exposing (..)
 import Tokenizer exposing (..)
@@ -95,11 +95,11 @@ parseParenthesisExpression tokens =
                               Ok _ ->
                                 case binaryOperatorToken of
                                   AndToken ->
-                                    Ok (And firstOperandTree secondOperandTree, List.drop 1 restOfTokens)
+                                    Ok (Binary firstOperandTree And secondOperandTree, List.drop 1 restOfTokens)
                                   OrToken ->
-                                    Ok (Or firstOperandTree secondOperandTree, List.drop 1 restOfTokens)
+                                    Ok (Binary firstOperandTree Or secondOperandTree, List.drop 1 restOfTokens)
                                   ImplicationToken ->
-                                    Ok (Implication firstOperandTree secondOperandTree, List.drop 1 restOfTokens)
+                                    Ok (Binary firstOperandTree Implication secondOperandTree, List.drop 1 restOfTokens)
 
 parseNotExpression : List Token -> Result String (ParseTree, List Token)
 parseNotExpression tokens =

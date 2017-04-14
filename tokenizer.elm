@@ -1,4 +1,4 @@
-module Tokenizer exposing (..)
+module Tokenizer exposing (tokenize)
 
 import Regex exposing (regex)
 

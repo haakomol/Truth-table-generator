@@ -1,9 +1,21 @@
 module Types exposing (..)
 
-type Mode
-  = Tokenizer
-  | Parser
-  | TruthTabler
+type alias Model =
+  { input : String
+  , errorMessage : String
+  , showParseInfo : Bool
+  , tokens : List Token
+  , parseTree : Maybe ParseTree
+  , truthTable : TruthTable
+  }
+
+init : (Model, Cmd Msg)
+init =
+  (Model "" "" True [] Nothing (TruthTable 0), Cmd.none)
+
+type Msg
+  = ChangeInput String
+  | ToggleParseInfo
 
 type alias TruthTable =
   { nPropvars : Int
@@ -11,11 +23,13 @@ type alias TruthTable =
 
 type ParseTree
   = Leaf String
-  | And ParseTree ParseTree
-  | Or ParseTree ParseTree
-  | Implication ParseTree ParseTree
+  | Binary ParseTree BinaryOperator ParseTree
   | Not ParseTree
-  | Empty
+
+type BinaryOperator
+  = And
+  | Or
+  | Implication
 
 type Token
   = PropvarToken String
