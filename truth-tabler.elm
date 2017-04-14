@@ -11,6 +11,12 @@ type SemanticTree
   | SemNot Bool SemanticTree
   | SemBinary Bool SemanticTree BinaryOperator SemanticTree
 
+type alias PropvarWithValue = (Propvar, Bool)
+
+type alias Valuation = List PropvarWithValue
+
+type alias SemTreeWithValuation = (SemanticTree, Valuation)
+
 semTreeValue : SemanticTree -> Bool
 semTreeValue semanticTree =
   case semanticTree of
@@ -21,37 +27,65 @@ semTreeValue semanticTree =
     SemBinary value _ _ _ ->
       value
 
-growValuationTree : ParseTree -> (Array Propvar) -> (Array Bool) -> SemanticTree
-growValuationTree parseTree propvars truthValues =
+growSemanticTree : ParseTree -> Valuation -> SemanticTree
+growSemanticTree parseTree propvarsWithValues =
   case parseTree of
     Leaf propvar ->
-      SemLeaf (findValForPropvar propvar propvars truthValues) propvar
+      SemLeaf (findValForPropvar propvar propvarsWithValues) propvar
     Not subTree ->
       let
-        semSubTree = growValuationTree subTree propvars truthValues
+        semSubTree = growSemanticTree subTree propvarsWithValues
         subTreeValue = semTreeValue semSubTree
       in
         SemNot (not subTreeValue) semSubTree
     Binary left op right ->
       let
-        semLeftTree = growValuationTree left propvars truthValues
-        semRightTree = growValuationTree right propvars truthValues
+        semLeftTree = growSemanticTree left propvarsWithValues
+        semRightTree = growSemanticTree right propvarsWithValues
         leftValue = semTreeValue semLeftTree
         rightValue = semTreeValue semRightTree
         combinedValue = binaryValue op leftValue rightValue
       in
         SemBinary combinedValue semLeftTree op semRightTree
 
-findValForPropvar : Propvar -> Array Propvar -> Array Bool -> Bool
-findValForPropvar propvar propvars truthValues =
-  let
-    propVarIndex = indexInArray propvar propvars
-    truthValueMaybe = Array.get propVarIndex truthValues
-  in
-    case truthValueMaybe of
-      Nothing -> False
-      Just truthValue -> truthValue
+growSemanticTreeWithValues : ParseTree -> Valuation -> (SemanticTree, Valuation)
+growSemanticTreeWithValues parseTree propvarsWithValues =
+  ((growSemanticTree parseTree propvarsWithValues), propvarsWithValues)
 
+getAllValuations : List Propvar -> List Valuation
+getAllValuations propvars =
+  let
+    n = List.length propvars
+    allValuationValues = getAllValuationValues n []
+  in
+    List.map
+      (\ valuation ->
+        List.map2
+          (\ var val ->
+            (var, val))
+          propvars valuation)
+      allValuationValues
+
+getAllValuationValues : Int -> List Bool -> List (List Bool)
+getAllValuationValues n truthValues =
+  if
+    (List.length truthValues) < n
+  then
+    List.append
+      (getAllValuationValues n (True :: truthValues))
+      (getAllValuationValues n (False :: truthValues))
+  else
+    [ truthValues ]
+
+findValForPropvar : Propvar -> List (Propvar, Bool) -> Bool
+findValForPropvar propvarMatching propvarsWithValues =
+  case propvarsWithValues of
+    [] -> False
+    (propvar, truthValue) :: tail ->
+      if   propvar == propvarMatching
+      then truthValue
+      else findValForPropvar propvarMatching tail
+  
 indexInArray : a -> Array a -> Int
 indexInArray elToLookFor array =
   let
