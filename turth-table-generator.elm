@@ -18,14 +18,25 @@ main =
 
 type alias Model =
   { input : String
+  , mode : Mode
   , tokens : List Token
   , parseTree : ParseTree
+  , truthTable : TruthTable
   , errorMessage : String
   }
 
 init : (Model, Cmd Msg)
 init =
-  (Model "" [] Empty "", Cmd.none)
+  (Model "" TruthTabler [] Empty (TruthTable 0) "", Cmd.none)
+
+type Mode
+  = Tokenizer
+  | Parser
+  | TruthTabler
+
+type alias TruthTable =
+  { nPropvars : Int
+  }
 
 type ParseTree
   = Leaf String
@@ -54,25 +65,61 @@ type ParenthesisToken
 
 type Msg
   = ChangeInput String
-  | ButtonTest
+  | ChangeMode Mode
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
+    ChangeMode newMode ->
+      ( { model | mode = newMode }, Cmd.none)
     ChangeInput newInput ->
-    --   ( { model | input = newInput}, Cmd.none)
-    -- ButtonTest ->
-      let
-        parseTreeResult = interpret newInput
-      in
-        case parseTreeResult of
-          Err errorMessage ->
-            ( {model | errorMessage = errorMessage }, Cmd.none)
-          Ok parseTree ->
-            ( { model | parseTree = parseTree, errorMessage = "" }, Cmd.none)
+      case model.mode of
+        Tokenizer ->
+          let
+            tokenizeResult = tokenize newInput
+          in
+            case tokenizeResult of
+              Err errorMessage ->
+                ( {model | errorMessage = errorMessage }, Cmd.none)
+              Ok tokens ->
+                ( { model | tokens = tokens, errorMessage = "" }, Cmd.none)
+        Parser ->
+          let
+            parseTreeResult = interpret newInput
+          in
+            case parseTreeResult of
+              Err errorMessage ->
+                ( {model | errorMessage = errorMessage }, Cmd.none)
+              Ok parseTree ->
+                ( { model | parseTree = parseTree, errorMessage = "" }, Cmd.none)
+        TruthTabler ->
+          let
+            parseTreeResult = interpret newInput
+          in
+            case parseTreeResult of
+              Err errorMessage ->
+                ( { model | errorMessage = errorMessage }, Cmd.none)
+              Ok parseTree ->
+                let
+                  nPropvars = countPropvars parseTree
+                in
+                  ( { model | parseTree = parseTree, truthTable = TruthTable nPropvars }, Cmd.none)
 
-    ButtonTest ->
-      (model, Cmd.none)
+countPropvars : ParseTree -> Int
+countPropvars parseTree =
+  case parseTree of
+    Leaf _ -> 1
+    And left right ->
+      (countPropvars left) + (countPropvars right)
+    Or left right ->
+      (countPropvars left) + (countPropvars right)
+    Implication left right ->
+      (countPropvars left) + (countPropvars right)
+    Not subtree ->
+      countPropvars subtree
+    Empty -> 0
+    
+
 
 
 tokenize : String -> Result String (List Token)
@@ -312,10 +359,12 @@ view : Model -> Html Msg
 view model =
   div []
     [ input [ placeholder "Formula", onInput ChangeInput ] []
-    , button [ onClick ButtonTest ] [ text "tokenize" ]
+    -- , button [] [ text "dummy" ]
+    , viewModeSelector
     , viewErrorMessage model
     , div [] (viewTokens model)
     , viewParseTree model
+    , viewTruthTable model
     ]
 
 viewErrorMessage : Model -> Html msg
@@ -331,3 +380,16 @@ viewTokens model =
 viewParseTree : Model -> Html msg
 viewParseTree model =
   div [] [ text (toString model.parseTree)]
+
+viewTruthTable : Model -> Html msg
+viewTruthTable model =
+  div [] [ text (toString model.truthTable.nPropvars)]
+
+viewModeSelector : Html Msg
+viewModeSelector =
+  div []
+    [ text "Mode selector: "
+    , button [ onClick (ChangeMode Tokenizer) ] [ text "Tokenizer"]
+    , button [ onClick (ChangeMode Parser) ] [ text "Parser"]
+    , button [ onClick (ChangeMode TruthTabler) ] [ text "TruthTabler"]
+    ]
