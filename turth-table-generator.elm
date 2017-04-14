@@ -35,12 +35,18 @@ type ParseTree
 
 type Token
   = PropvarToken String
-  | LeftParToken
-  | RightParToken
-  | AndToken
+  | Operator OperatorToken
+  | Parenthesis ParenthesisToken
+
+type OperatorToken
+  = AndToken
   | OrToken
   | ImplicationToken
   | NotToken
+
+type ParenthesisToken
+  = LeftParToken
+  | RightParToken
 
 -- UPDATE
 
@@ -95,12 +101,12 @@ tokenizeOne inputString =
         Err "toknizeOne: empty input"
       Just (firstChar, restOfInput) ->
         case firstChar of
-          '(' -> Ok (LeftParToken, restOfInput)
-          ')' -> Ok (RightParToken, restOfInput)
-          '&' -> Ok (AndToken, restOfInput)
-          '|' -> Ok (OrToken, restOfInput)
-          '-' -> Ok (NotToken, restOfInput)
-          '>' -> Ok (ImplicationToken, restOfInput)
+          '(' -> Ok (Parenthesis LeftParToken, restOfInput)
+          ')' -> Ok (Parenthesis RightParToken, restOfInput)
+          '&' -> Ok (Operator AndToken, restOfInput)
+          '|' -> Ok (Operator OrToken, restOfInput)
+          '-' -> Ok (Operator NotToken, restOfInput)
+          '>' -> Ok (Operator ImplicationToken, restOfInput)
           ' ' -> tokenizeOne (String.dropLeft 1 inputString)
           _ ->
             if firstChar |> toString |> Regex.contains (regex "[A-Za-z]")
@@ -132,9 +138,57 @@ tokenizePropvar inputString =
     else
       innerHelper "" inputString
 
-parseInput : String -> Model
-parseInput newInput =
-  Model "" [] ""
+parseTokens : List Token -> Result String (ParseTree, List Token) -- Should only be ParseTree
+parseTokens tokens =
+  let
+    firstToken = List.head tokens
+  in
+    case firstToken of
+      Nothing ->
+        Err "Parser: Expected more tokens, got nothing"
+      Just token ->
+        parseSubExpression tokens
+
+parseSubExpression : List Token -> Result String (ParseTree, List Token)
+parseSubExpression tokens =
+  let
+    firstToken = List.head tokens
+  in
+    case firstToken of
+      Nothing ->
+        Err "Parser: Got nothing"
+      Just token ->
+        case token o
+          Parenthesis LeftParToken ->
+            parseParenthesisExpression (List.tail tokens)
+          Operator NotToken ->
+            parseNotExpression (List.tail tokens)
+          Operator operator ->
+            Err "Parser: Got binary operator: " ++ (toString operator) ++ ", expected left parentheis, operand or not operator"
+          Parenthesis RightParToken ->
+            Err "Parser: Got right parenthesis, expected left parentheis, operand or not operator"
+          PropvarToken propvar ->
+            Ok ((Leaf propvar), List.tail tokens)
+
+
+parseParenthesisExpression : List Token -> Result String (ParseTree, List Token)
+parseParenthesisExpression tokens =
+  let
+    firstToken = List.head tokens
+  in
+    case firstToken of
+      Nothing ->
+        Err "Parser: Got nothing after left parentheis"
+      Just token ->
+        let
+          firstOperandResult = parseSubExpression tokens
+        in
+          case firstOperandResult of
+            Err errorMessage ->
+              Err errorMessage
+            Ok (firstOperandTree, restOfTokens) ->
+              let
+                binaryOperator = parseBinaryOperator restOfTokens
 
 
 -- SUBSCRIPTIONS
@@ -150,7 +204,7 @@ view : Model -> Html Msg
 view model =
   div []
     [ input [ placeholder "Formula", onInput ChangeInput ] []
-    , button [ onClick ButtonTest ] [ text "tokeinze" ]
+    , button [ onClick ButtonTest ] [ text "tokenize" ]
     , div [] [ text ("Error message " ++ model.errorMessage) ]
     , div [] (viewTokens model)
     ]
