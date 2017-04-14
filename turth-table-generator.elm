@@ -1,4 +1,4 @@
-import Html exposing (Html, Attribute, div, input, text, button)
+import Html exposing (Html, Attribute, div, input, text, button, h2)
 import Html.Events exposing (onInput, onClick)
 import Html.Attributes exposing (placeholder)
 import Regex exposing (regex)
@@ -19,12 +19,13 @@ main =
 type alias Model =
   { input : String
   , tokens : List Token
+  , parseTree : ParseTree
   , errorMessage : String
   }
 
 init : (Model, Cmd Msg)
 init =
-  (Model "" [] "", Cmd.none)
+  (Model "" [] Empty "", Cmd.none)
 
 type ParseTree
   = Leaf String
@@ -32,17 +33,18 @@ type ParseTree
   | Or ParseTree ParseTree
   | Implication ParseTree ParseTree
   | Not ParseTree
+  | Empty
 
 type Token
   = PropvarToken String
-  | Operator OperatorToken
+  | NotToken
+  | BinaryOperator BinaryOperatorToken
   | Parenthesis ParenthesisToken
 
-type OperatorToken
+type BinaryOperatorToken
   = AndToken
   | OrToken
   | ImplicationToken
-  | NotToken
 
 type ParenthesisToken
   = LeftParToken
@@ -61,13 +63,13 @@ update msg model =
     --   ( { model | input = newInput}, Cmd.none)
     -- ButtonTest ->
       let
-        tokenizeResult = tokenize newInput
+        parseTreeResult = interpret newInput
       in
-        case tokenizeResult of
-          Ok tokens ->
-            ( { model | tokens = tokens, errorMessage="" }, Cmd.none)
+        case parseTreeResult of
           Err errorMessage ->
-            ( { model | tokens = [], errorMessage = errorMessage }, Cmd.none)
+            ( {model | errorMessage = errorMessage }, Cmd.none)
+          Ok parseTree ->
+            ( { model | parseTree = parseTree, errorMessage = "" }, Cmd.none)
 
     ButtonTest ->
       (model, Cmd.none)
@@ -103,10 +105,10 @@ tokenizeOne inputString =
         case firstChar of
           '(' -> Ok (Parenthesis LeftParToken, restOfInput)
           ')' -> Ok (Parenthesis RightParToken, restOfInput)
-          '&' -> Ok (Operator AndToken, restOfInput)
-          '|' -> Ok (Operator OrToken, restOfInput)
-          '-' -> Ok (Operator NotToken, restOfInput)
-          '>' -> Ok (Operator ImplicationToken, restOfInput)
+          '-' -> Ok (NotToken, restOfInput)
+          '&' -> Ok (BinaryOperator AndToken, restOfInput)
+          '|' -> Ok (BinaryOperator OrToken, restOfInput)
+          '>' -> Ok (BinaryOperator ImplicationToken, restOfInput)
           ' ' -> tokenizeOne (String.dropLeft 1 inputString)
           _ ->
             if firstChar |> toString |> Regex.contains (regex "[A-Za-z]")
@@ -138,16 +140,34 @@ tokenizePropvar inputString =
     else
       innerHelper "" inputString
 
-parseTokens : List Token -> Result String (ParseTree, List Token) -- Should only be ParseTree
+interpret : String -> Result String ParseTree
+interpret inputString =
+  let
+    tokenizeResult = tokenize inputString
+  in
+    case tokenizeResult of
+      Err message ->
+        Err message
+      Ok tokens ->
+        let
+          parseResult = parseTokens tokens
+        in
+          case parseResult of
+            Err message ->
+              Err message
+            Ok parseTree ->
+              Ok parseTree
+
+parseTokens : List Token -> Result String ParseTree
 parseTokens tokens =
   let
-    firstToken = List.head tokens
+    parseTreeResult = parseSubExpression tokens
   in
-    case firstToken of
-      Nothing ->
-        Err "Parser: Expected more tokens, got nothing"
-      Just token ->
-        parseSubExpression tokens
+    case parseTreeResult of
+      Err message ->
+        Err message
+      Ok (parseTree, restOfTokens) ->
+        Ok parseTree
 
 parseSubExpression : List Token -> Result String (ParseTree, List Token)
 parseSubExpression tokens =
@@ -158,17 +178,18 @@ parseSubExpression tokens =
       Nothing ->
         Err "Parser: Got nothing"
       Just token ->
-        case token o
+        case token of
           Parenthesis LeftParToken ->
-            parseParenthesisExpression (List.tail tokens)
-          Operator NotToken ->
-            parseNotExpression (List.tail tokens)
-          Operator operator ->
-            Err "Parser: Got binary operator: " ++ (toString operator) ++ ", expected left parentheis, operand or not operator"
+            parseParenthesisExpression (List.drop 1 tokens)
+          NotToken ->
+            parseNotExpression (List.drop 1 tokens)
+          BinaryOperator operator ->
+            Err ("Parser: Got binary operator: " ++ (toString operator) ++
+                ", expected left parentheis, operand or not operator")
           Parenthesis RightParToken ->
             Err "Parser: Got right parenthesis, expected left parentheis, operand or not operator"
           PropvarToken propvar ->
-            Ok ((Leaf propvar), List.tail tokens)
+            Ok (Leaf propvar, List.drop 1 tokens)
 
 
 parseParenthesisExpression : List Token -> Result String (ParseTree, List Token)
@@ -188,7 +209,94 @@ parseParenthesisExpression tokens =
               Err errorMessage
             Ok (firstOperandTree, restOfTokens) ->
               let
-                binaryOperator = parseBinaryOperator restOfTokens
+                binaryOperatorResult = parseBinaryOperator restOfTokens
+              in
+                case binaryOperatorResult of
+                  Err errorMessage ->
+                    Err errorMessage
+                  Ok (binaryOperatorToken, restOfTokens) ->
+                    let
+                      secondOperandResult = parseSubExpression restOfTokens
+                    in
+                      case secondOperandResult of
+                        Err errorMessage ->
+                          Err errorMessage
+                        Ok (secondOperandTree, restOfTokens) ->
+                          let
+                            parseRightParenthesisResult =
+                              parseToken (Parenthesis RightParToken) restOfTokens
+                          in
+                            case parseRightParenthesisResult of
+                              Err message ->
+                                Err message
+                              Ok _ ->
+                                case binaryOperatorToken of
+                                  AndToken ->
+                                    Ok (And firstOperandTree secondOperandTree, List.drop 1 restOfTokens)
+                                  OrToken ->
+                                    Ok (Or firstOperandTree secondOperandTree, List.drop 1 restOfTokens)
+                                  ImplicationToken ->
+                                    Ok (Implication firstOperandTree secondOperandTree, List.drop 1 restOfTokens)
+
+parseNotExpression : List Token -> Result String (ParseTree, List Token)
+parseNotExpression tokens =
+  let
+    innerExpressionResult = parseSubExpression tokens
+  in
+    case innerExpressionResult of
+      Err message ->
+        Err message
+      Ok (innerExpressionTree, restTokens) ->
+        Ok (Not innerExpressionTree, restTokens)
+
+parseBinaryOperator : List Token -> Result String (BinaryOperatorToken, List Token)
+parseBinaryOperator tokens =
+  let
+    firstToken = List.head tokens
+  in
+    case firstToken of
+      Nothing ->
+        Err "Parser: Expected binary operator, got nothing."
+      Just token ->
+        case token of
+          BinaryOperator binaryOperatorToken ->
+            Ok (binaryOperatorToken, List.drop 1 tokens)
+          _ ->
+            Err ("Parser: Expected binary operator, but got this token: " ++ toString token ++ ".")
+
+-- Checks that first token in tokens is token, and that there are more tokens
+parseToken : Token -> List Token -> Result String String
+parseToken tokenToParse tokens =
+  let
+    firstTokenMaybe = List.head tokens
+  in
+    case firstTokenMaybe of
+      Nothing ->
+        Err "Parser: Expected more tokens, got nothing"
+      Just firstToken ->
+        if firstToken == tokenToParse
+        then
+          Ok "ok"
+        else
+          Err "Parser: Wrong kind of token"
+
+parseTokenAndCheckNotEnd : Token -> List Token -> Result String (List Token)
+parseTokenAndCheckNotEnd tokenToParse tokens =
+  let
+    parseTokenResult = parseToken tokenToParse tokens
+  in
+    case parseTokenResult of
+      Err errorMessage ->
+        Err errorMessage
+      Ok _ ->
+        let
+          restOfTokensMaybe = List.tail tokens
+        in
+          case restOfTokensMaybe of
+            Nothing ->
+              Err "Parser: Expected more tokens"
+            Just restOfTokens ->
+              Ok (restOfTokens)
 
 
 -- SUBSCRIPTIONS
@@ -205,10 +313,21 @@ view model =
   div []
     [ input [ placeholder "Formula", onInput ChangeInput ] []
     , button [ onClick ButtonTest ] [ text "tokenize" ]
-    , div [] [ text ("Error message " ++ model.errorMessage) ]
+    , viewErrorMessage model
     , div [] (viewTokens model)
+    , viewParseTree model
     ]
+
+viewErrorMessage : Model -> Html msg
+viewErrorMessage model =
+  if   not (String.isEmpty model.errorMessage)
+  then h2  [] [ text ("Error: " ++ model.errorMessage) ]
+  else div [] []
 
 viewTokens : Model -> List (Html Msg)
 viewTokens model =
   List.map (\ token -> div [] [ text (toString token) ]) model.tokens
+
+viewParseTree : Model -> Html msg
+viewParseTree model =
+  div [] [ text (toString model.parseTree)]
