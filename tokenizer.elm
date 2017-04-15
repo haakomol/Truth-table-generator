@@ -36,11 +36,14 @@ tokenizeOne inputString =
           ')' -> Ok (Parenthesis RightParToken, restOfInput)
           '-' -> Ok (NotToken, restOfInput)
           '&' -> Ok (BinaryOperator AndToken, restOfInput)
+          'a' -> Ok (BinaryOperator AndToken, restOfInput)
           '|' -> Ok (BinaryOperator OrToken, restOfInput)
+          'v' -> Ok (BinaryOperator OrToken, restOfInput)
+          'e' -> Ok (BinaryOperator OrToken, restOfInput)
           '>' -> Ok (BinaryOperator ImplicationToken, restOfInput)
           ' ' -> tokenizeOne (String.dropLeft 1 inputString)
           _ ->
-            if firstChar |> toString |> Regex.contains (regex "[A-Za-z]")
+            if firstChar |> toString |> Regex.contains (regex "[A-Z]")
             then
               tokenizePropvar inputString
             else
@@ -57,11 +60,15 @@ tokenizePropvar inputString =
           Nothing ->
             Ok (PropvarToken readSoFar, "")
           Just (firstChar, restOfInput) ->
-            if firstChar |> toString |> Regex.contains (regex "[A-Za-z]")
-            then
-              innerHelper ( readSoFar ++ (String.fromChar firstChar)) restOfInput
-            else
-              Ok (PropvarToken readSoFar, (String.cons firstChar restOfInput))
+            let
+              firstCharStr = toString firstChar
+            in
+              if (Regex.contains (regex "[A-Za-z]") firstCharStr) &&
+                 (not (Regex.contains (regex "[aev]") firstCharStr))
+              then
+                innerHelper ( readSoFar ++ (String.fromChar firstChar)) restOfInput
+              else
+                Ok (PropvarToken readSoFar, (String.cons firstChar restOfInput))
   in
     if String.isEmpty inputString
     then
