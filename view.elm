@@ -29,16 +29,16 @@ viewParseInfoPanel model =
       if model.showParseInfo
       then
         div []
-          [ viewErrorMessage model
-          , viewTokens model
+          [ viewTokens model
           , viewParseTree model
           ]
       else
         div [] []
   in
     div []
-      [ -- viewParseInfoSwitch,
-        viewParseInfoContent model
+      [ viewParseInfoSwitch
+      , viewErrorMessage model
+      , viewParseInfoContent model
       ]
 
 viewErrorMessage : Model -> Html msg

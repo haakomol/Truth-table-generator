@@ -50,20 +50,6 @@ update msg model =
                                 truthTable = truthTable,
                                 errorMessage = "" }, Cmd.none)
         
-      --   TruthTabler ->
-      --     let
-      --       parseTreeResult = interpret newInput
-      --     in
-      --       case parseTreeResult of
-      --         Err errorMessage ->
-      --           ( { model | errorMessage = errorMessage }, Cmd.none)
-      --         Ok parseTree ->
-      --           let
-      --             nPropvars = countPropvars parseTree
-      --           in
-      --             ( { model | parseTree = parseTree, truthTable = TruthTable nPropvars }, Cmd.none)
-
-
 -- SUBSCRIPTIONS
 
 subscriptions : Model -> Sub Msg
