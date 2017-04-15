@@ -31,8 +31,7 @@ update msg model =
           Err errorMessage ->
             ( { model | errorMessage = errorMessage,
                         tokens = [],
-                        parseTree = Nothing,
-                        truthTable = [] }, Cmd.none)
+                        parseTree = Nothing }, Cmd.none)
           Ok tokens ->
             let
               parseTreeResult = parseTokens tokens
@@ -41,11 +40,10 @@ update msg model =
                 Err errorMessage ->
                   ( { model | errorMessage = errorMessage,
                               tokens = tokens,
-                              parseTree = Nothing,
-                              truthTable = [] }, Cmd.none)
+                              parseTree = Nothing }, Cmd.none)
                 Ok parseTree ->
                   let
-                    truthTable = getSimpleTruthTableRows parseTree
+                    truthTable = getTruthTable parseTree
                   in
                     ( { model | tokens = tokens,
                                 parseTree = Just parseTree,

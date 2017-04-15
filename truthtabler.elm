@@ -1,60 +1,100 @@
-module TruthTabler exposing (getSimpleTruthTableRows)
+module TruthTabler exposing (getTruthTable)
 
 import Array exposing (Array, get)
 
 import Types exposing (..)
 
-type alias Propvar = String
+getTruthTable : ParseTree -> TruthTable
+getTruthTable parseTree =
+  let
+    uniquePropvars = getUniquePropvars parseTree
+    allValuations = getAllValuations uniquePropvars
+    semTreeList = growSemTreesForAllValuations parseTree allValuations
+    firstSemTreeMaybe = (List.head semTreeList)
+  in
+    case firstSemTreeMaybe of
+      Nothing ->
+        { ttHeader = [], ttRows = [] }
+      Just firstSemTree ->
+        { ttHeader = getTTHeader firstSemTree
+        , ttRows = (List.map getTTRow semTreeList)
+        }
 
-type SemanticTree
-  = SemLeaf Bool Propvar
-  | SemNot Bool SemanticTree
-  | SemBinary Bool SemanticTree BinaryOperator SemanticTree
-
-type alias PropvarWithValue = (Propvar, Bool)
-
-type alias Valuation = List PropvarWithValue
-
-type alias SemTreeWithValuation = (SemanticTree, Valuation)
-
-simpleTruthTableRow : SemTreeWithValuation -> List Bool
-simpleTruthTableRow semTreeWithValuation =
+getTTHeader : SemTreeWithValuation -> TTHeader
+getTTHeader semTreeWithValuation =
   let
     (semTree, valuation) = semTreeWithValuation
   in
     List.append
-      (extractTruthValuesFromValuation valuation)
-      (extractTruthValuesFromSemTree semTree)
+      (extractPropvarTTHTokensFromValuation valuation)
+      (extractTTHeaderFromSemTree semTree)
+
+getTTRow : SemTreeWithValuation -> List (Maybe Bool)
+getTTRow semTreeWithValuation =
+  let
+    (semTree, valuation) = semTreeWithValuation
+  in
+    List.append
+      (List.map
+        (\ truthValue -> (Just truthValue))
+        (extractTruthValuesFromValuation valuation))
+      (extractTTRowFromSemTree semTree)
 
 extractTruthValuesFromValuation : Valuation -> List Bool
 extractTruthValuesFromValuation valuation =
   List.map (\ (propvar, truthValue) -> truthValue) valuation
 
-extractTruthValuesFromSemTree : SemanticTree -> List Bool
-extractTruthValuesFromSemTree semanticTree =
+extractPropvarTTHTokensFromValuation : Valuation -> List TTHeaderToken
+extractPropvarTTHTokensFromValuation valuation =
+  List.map
+    (\ (propvar, truthValue) -> TTHPropvarToken propvar)
+    valuation
+
+extractTTRowFromSemTree : SemanticTree -> List (Maybe Bool)
+extractTTRowFromSemTree semanticTree =
   case semanticTree of
     SemLeaf truthValue _ ->
-      [ truthValue ]
+      [ Just truthValue ]
     SemNot truthValue subTree ->
-      truthValue :: extractTruthValuesFromSemTree subTree
+      (Just truthValue) :: extractTTRowFromSemTree subTree
     SemBinary truthValue left op right ->
-      List.append
-        (extractTruthValuesFromSemTree left)
-        (truthValue ::
-          (extractTruthValuesFromSemTree right))
+      Nothing ::
+        (List.append
+          (extractTTRowFromSemTree left)
+          (List.append
+            (Just truthValue ::
+              (extractTTRowFromSemTree right))
+            [ Nothing ]))
+
+extractTTHeaderFromSemTree : SemanticTree -> List TTHeaderToken
+extractTTHeaderFromSemTree semanticTree =
+  case semanticTree of
+    SemLeaf _ propvar ->
+      [ TTHPropvarToken propvar ]
+    SemNot _ subTree ->
+      TTHNotToken :: extractTTHeaderFromSemTree subTree
+    SemBinary _ left op right ->
+      TTHLeftParToken ::
+        (List.append
+          (extractTTHeaderFromSemTree left)
+          (List.append
+            ((binOpToTTHToken op) ::
+              (extractTTHeaderFromSemTree right))
+            [ TTHRightParToken ]))
+
+binOpToTTHToken : BinaryOperator -> TTHeaderToken
+binOpToTTHToken op =
+  case op of
+    And ->
+      TTHAndToken
+    Or ->
+      TTHOrToken
+    Implication ->
+      TTHImplicationToken
 
 growSemTreesForAllValuations : ParseTree -> List Valuation -> List SemTreeWithValuation
 growSemTreesForAllValuations parseTree valuations =
   List.map (growSemanticTreeWithValues parseTree) valuations
-
-getSimpleTruthTableRows : ParseTree -> List (List Bool)
-getSimpleTruthTableRows parseTree =
-  let
-    uniquePropvars = getUniquePropvars parseTree
-    allValuations = getAllValuations uniquePropvars
-    semTreeTable = growSemTreesForAllValuations parseTree allValuations
-  in
-    List.map simpleTruthTableRow semTreeTable
 
 
 semTreeValue : SemanticTree -> Bool
@@ -96,7 +136,7 @@ getAllValuations : List Propvar -> List Valuation
 getAllValuations propvars =
   let
     n = List.length propvars
-    allValuationValues = getAllValuationValues n []
+    allValuationValues = getAllValuationValues n
   in
     List.map
       (\ valuation ->
@@ -106,16 +146,20 @@ getAllValuations propvars =
           propvars valuation)
       allValuationValues
 
-getAllValuationValues : Int -> List Bool -> List (List Bool)
-getAllValuationValues n truthValues =
-  if
-    (List.length truthValues) < n
-  then
-    List.append
-      (getAllValuationValues n (True :: truthValues))
-      (getAllValuationValues n (False :: truthValues))
-  else
-    [ truthValues ]
+getAllValuationValues : Int -> List (List Bool)
+getAllValuationValues n =
+  let
+    innerHelper truthValues =
+      if
+        (List.length truthValues) < n
+      then
+        List.append
+          (innerHelper (True :: truthValues))
+          (innerHelper (False :: truthValues))
+      else
+        [ truthValues ]
+  in
+    List.map List.reverse (innerHelper [])
 
 findValForPropvar : Propvar -> List (Propvar, Bool) -> Bool
 findValForPropvar propvarMatching propvarsWithValues =
