@@ -39,7 +39,7 @@ parseSubExpression tokens =
   in
     case firstToken of
       Nothing ->
-        Err "Parser: Got nothing"
+        Err "Parser: Expected left parentheis, operand or not operator, got nothing!"
       Just token ->
         case token of
           Parenthesis LeftParToken ->
@@ -141,7 +141,7 @@ parseToken tokenToParse tokens =
         then
           Ok "ok"
         else
-          Err "Parser: Wrong kind of token"
+          Err ("Parser: Expected " ++ (toString tokenToParse) ++ ", got " ++ (toString firstToken))
 
 parseTokenAndCheckNotEnd : Token -> List Token -> Result String (List Token)
 parseTokenAndCheckNotEnd tokenToParse tokens =

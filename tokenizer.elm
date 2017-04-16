@@ -39,7 +39,6 @@ tokenizeOne inputString =
           'a' -> Ok (BinaryOperator AndToken, restOfInput)
           '|' -> Ok (BinaryOperator OrToken, restOfInput)
           'v' -> Ok (BinaryOperator OrToken, restOfInput)
-          'e' -> Ok (BinaryOperator OrToken, restOfInput)
           '>' -> Ok (BinaryOperator ImplicationToken, restOfInput)
           ' ' -> tokenizeOne (String.dropLeft 1 inputString)
           _ ->
