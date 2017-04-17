@@ -1,6 +1,7 @@
 module Tokenizer exposing (tokenize)
 
 import Regex exposing (regex)
+import Char
 
 import Types exposing (..)
 
@@ -17,36 +18,50 @@ tokenize inputString =
           case tokenizeOneResult of
             Err errorString ->
               Err errorString
-            Ok (token, restOfInputString) ->
+            Ok (Nothing, _) ->
+              Ok (List.reverse tokensSoFar)
+            Ok (Just token, restOfInputString) ->
               innerHelper (token :: tokensSoFar) restOfInputString 
   in
     innerHelper [] inputString
 
-tokenizeOne : String -> (Result String (Token, String))
+tokenizeOne : String -> (Result String (Maybe Token, String))
 tokenizeOne inputString =
   let
     firstCharMaybe = String.uncons inputString
   in
     case firstCharMaybe of
       Nothing ->
-        Err "toknizeOne: empty input"
+        Ok (Nothing, "")
       Just (firstChar, restOfInput) ->
         case firstChar of
-          '(' -> Ok (Parenthesis LeftParToken, restOfInput)
-          ')' -> Ok (Parenthesis RightParToken, restOfInput)
-          '-' -> Ok (NotToken, restOfInput)
-          '&' -> Ok (BinaryOperator AndToken, restOfInput)
-          'a' -> Ok (BinaryOperator AndToken, restOfInput)
-          '|' -> Ok (BinaryOperator OrToken, restOfInput)
-          'v' -> Ok (BinaryOperator OrToken, restOfInput)
-          '>' -> Ok (BinaryOperator ImplicationToken, restOfInput)
+          '(' -> Ok (Just (Parenthesis LeftParToken), restOfInput)
+          ')' -> Ok (Just (Parenthesis RightParToken), restOfInput)
+          '-' -> Ok (Just (NotToken), restOfInput)
+          '&' -> Ok (Just (BinaryOperator AndToken), restOfInput)
+          'a' -> Ok (Just (BinaryOperator AndToken), restOfInput)
+          '|' -> Ok (Just (BinaryOperator OrToken), restOfInput)
+          'v' -> Ok (Just (BinaryOperator OrToken), restOfInput)
+          '>' -> Ok (Just (BinaryOperator ImplicationToken), restOfInput)
           ' ' -> tokenizeOne (String.dropLeft 1 inputString)
           _ ->
-            if firstChar |> toString |> Regex.contains (regex "[A-Z]")
+            if
+              firstChar |> toString |> Regex.contains (regex "[A-Z]")
             then
-              tokenizePropvar inputString
+              let
+                propvarToken = tokenizePropvar inputString
+              in
+                case propvarToken of
+                  Ok (token, restOfInput) ->
+                    Ok ((Just token), restOfInput)
+                  Err errorMessage ->
+                    Err errorMessage
+            else if 
+                Char.isLower firstChar
+            then
+              Err ("Skjønner ikke dette tegnet: " ++ (toString firstChar) ++ ". Utsagnsvariabler må begynne med stor forbokstav!")
             else
-              Err ("invalid input: " ++ (toString firstChar))
+              Err ("Skjønner ikke dette tegnet: " ++ (toString firstChar))
 
 tokenizePropvar : String -> (Result String (Token, String))
 tokenizePropvar inputString =
@@ -63,7 +78,7 @@ tokenizePropvar inputString =
               firstCharStr = toString firstChar
             in
               if (Regex.contains (regex "[A-Za-z]") firstCharStr) &&
-                 (not (Regex.contains (regex "[aev]") firstCharStr))
+                 (not (Regex.contains (regex "[av]") firstCharStr))
               then
                 innerHelper ( readSoFar ++ (String.fromChar firstChar)) restOfInput
               else

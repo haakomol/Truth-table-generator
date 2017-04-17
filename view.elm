@@ -12,7 +12,7 @@ import Types exposing (..)
 view : Model -> Html Msg
 view model =
   div []
-    [ input [ placeholder "Formula", onInput ChangeInput ] []
+    [ input [ placeholder "Utsagnslogisk formel", onInput ChangeInput ] []
     , viewParseInfoPanel model
     , viewTruthTable model.truthTable
     ]
@@ -23,7 +23,7 @@ viewParseInfoPanel model =
     viewParseInfoSwitch =
       label []
         [ input [ type_ "checkbox", onClick ToggleParseInfo, checked True ] []
-        , text "Show parse info"
+        , text "Vis programmets parse-data"
         ]
     viewParseInfoContent model =
       if model.showParseInfo
@@ -51,7 +51,7 @@ getErrorOrOkMessage : Model -> String
 getErrorOrOkMessage model =
   if   String.isEmpty model.errorMessage
   then "---"
-  else "Error: " ++ model.errorMessage
+  else model.errorMessage
 
 viewTokens : Model -> Html msg
 viewTokens model =
@@ -83,7 +83,7 @@ viewTruthTable truthTable =
     ttRows = List.map ttRowToTableRow truthTable.ttRows
   in
     div []
-        [ h4 [] [ text "Truth table" ]
+        [ h4 [] [ text "Sannhetsverditabell" ]
         , table []
           (ttHeader :: ttRows)
       ]

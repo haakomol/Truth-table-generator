@@ -30,7 +30,11 @@ parseTokens tokens =
       Err message ->
         Err message
       Ok (parseTree, restOfTokens) ->
-        Ok parseTree
+        case restOfTokens of
+          [] ->
+            Ok parseTree
+          _ ->
+            Err (parserHint "Skjønner ikke slutten av formelen. Mangler du en venstreparentes i begynnelsen?")
 
 parseSubExpression : List Token -> Result String (ParseTree, List Token)
 parseSubExpression tokens =
@@ -39,7 +43,7 @@ parseSubExpression tokens =
   in
     case firstToken of
       Nothing ->
-        Err "Parser: Expected left parentheis, operand or not operator, got nothing!"
+        Err (parserHint "Savner en delformel som må begynne med en venstreparentes, ikke-konnektivet eller en utsagnsvariabel.")
       Just token ->
         case token of
           Parenthesis LeftParToken ->
@@ -47,10 +51,10 @@ parseSubExpression tokens =
           NotToken ->
             parseNotExpression (List.drop 1 tokens)
           BinaryOperator operator ->
-            Err ("Parser: Got binary operator: " ++ (toString operator) ++
-                ", expected left parentheis, operand or not operator")
+            Err (parserHint ("Her er det et " ++ (binaryOperatorTokenToString operator) ++
+                            "-konnektiv der jeg forventet en delformel."))
           Parenthesis RightParToken ->
-            Err "Parser: Got right parenthesis, expected left parentheis, operand or not operator"
+            Err (parserHint "Her er det en høyreparentes der jeg forventet en delformel.")
           PropvarToken propvar ->
             Ok (Leaf propvar, List.drop 1 tokens)
 
@@ -62,7 +66,7 @@ parseParenthesisExpression tokens =
   in
     case firstToken of
       Nothing ->
-        Err "Parser: Got nothing after left parentheis"
+        Err (parserHint "Ser ingenting etter en venstreparentes.")
       Just token ->
         let
           firstOperandResult = parseSubExpression tokens
@@ -91,7 +95,7 @@ parseParenthesisExpression tokens =
                           in
                             case parseRightParenthesisResult of
                               Err message ->
-                                Err message
+                                Err (parserHint "Savner en høyreparentes.")
                               Ok _ ->
                                 case binaryOperatorToken of
                                   AndToken ->
@@ -119,13 +123,13 @@ parseBinaryOperator tokens =
   in
     case firstToken of
       Nothing ->
-        Err "Parser: Expected binary operator, got nothing."
+        Err (parserHint "Savner et og/eller/implikasjon-konnektiv på slutten.")
       Just token ->
         case token of
           BinaryOperator binaryOperatorToken ->
             Ok (binaryOperatorToken, List.drop 1 tokens)
           _ ->
-            Err ("Parser: Expected binary operator, but got this token: " ++ toString token ++ ".")
+            Err (parserHint "Savner et og/eller/implikasjon-konnektiv.")
 
 -- Checks that first token in tokens is token, and that there are more tokens
 parseToken : Token -> List Token -> Result String String
@@ -143,20 +147,16 @@ parseToken tokenToParse tokens =
         else
           Err ("Parser: Expected " ++ (toString tokenToParse) ++ ", got " ++ (toString firstToken))
 
-parseTokenAndCheckNotEnd : Token -> List Token -> Result String (List Token)
-parseTokenAndCheckNotEnd tokenToParse tokens =
-  let
-    parseTokenResult = parseToken tokenToParse tokens
-  in
-    case parseTokenResult of
-      Err errorMessage ->
-        Err errorMessage
-      Ok _ ->
-        let
-          restOfTokensMaybe = List.tail tokens
-        in
-          case restOfTokensMaybe of
-            Nothing ->
-              Err "Parser: Expected more tokens"
-            Just restOfTokens ->
-              Ok (restOfTokens)
+parserHint : String -> String
+parserHint hint =
+  "Venter på en gyldig formel... (" ++ hint ++ ")"
+
+binaryOperatorTokenToString : BinaryOperatorToken -> String
+binaryOperatorTokenToString binaryOperatorToken =
+  case binaryOperatorToken of
+    AndToken ->
+      "og"
+    OrToken -> 
+      "eller"
+    ImplicationToken ->
+      "implikasjon"
